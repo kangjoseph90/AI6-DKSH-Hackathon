@@ -8,16 +8,18 @@ import torch
 import copy
 import math
 import matplotlib.pyplot as plt
+import os
+import time
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 
-BoardX = 15 #게임 사이즈
-BoardY = 15
+BoardX = 30 #게임 사이즈
+BoardY = 30
 
-PixelPerBlock = 50
+PixelPerBlock = 25
 
 screen = pygame.display.set_mode(
     (BoardX*PixelPerBlock, BoardY*PixelPerBlock), pygame.DOUBLEBUF)
@@ -109,7 +111,7 @@ class Snake:
     def genApple(self): #사과 생성
         while True:
             temp = random.randrange(0, BoardX*BoardY)
-            apple = Vec([temp % BoardX, temp//BoardY])
+            apple = Vec([temp % BoardX, temp//BoardX])
             coll = False
             if self.isInBody(apple):
                 continue
@@ -147,14 +149,16 @@ class Snake:
         if self.consume:
             self.consume = False
             return 10
+    
+        if self.isDead():
+            return -100
 
         now_distance = self.apple - self.body[0]
         if norm(now_distance) < norm(self.last_distance):
             self.last_distance = now_distance
-            return 0.009
-        self.last_distance = now_distance
+            return 1.5
 
-        return -0.01
+        return -0.777
 
     def isOutOfBoard(self, position): #해당 좌표가 보드 밖으로 나갔는지 확인
         if position[0] < 0 or position[0] >= BoardX or position[1] < 0 or position[1] >= BoardY:
@@ -167,15 +171,14 @@ class Snake:
                 return True
         return False
 
-def train(episode=1000):
+def train(episode):
+    os.system("cls")
     Game = Snake() 
     agent = DQN(episode)
 
     for i in range(episode):
-        print(agent.printEps())
         while True:
-
-            # clock.tick(framerate)  #딜레이
+            clock.tick(framerate)  #딜레이
             screen.fill(BLACK)
             
             for event in pygame.event.get():
@@ -184,12 +187,12 @@ def train(episode=1000):
 
             dirs = getDir(Game.dir)
             arr = [Game.getState()]
-            reward = Game.getReward()
             action = agent.select_action(arr[0])
 
             Game.changeDir(dirs[action])
             Game.MoveSnake()
             arr.append(Game.getState())
+            reward = Game.getReward()
 
             agent.memorize(arr[0], action, reward, arr[1])
             agent.optimize_model()
@@ -203,9 +206,13 @@ def train(episode=1000):
 
             Game.Draw()
             pygame.display.flip()
-        print(f"{i+1}번째 에피소드 - 점수 : {score_history[i]}")
+        print(f"{i+1}/{episode} - 점수 : {score_history[i]} / 최고 점수 : {max(score_history)}")
 
     plt.plot(score_history)
+    plt.title(f"Result of Snake Game in RL that {episode} times learning")
+    plt.xlabel("Number of Games")
+    plt.ylabel("Score")
     plt.show()
 
-train()
+if __name__ == "__main__":
+    train(3000)
