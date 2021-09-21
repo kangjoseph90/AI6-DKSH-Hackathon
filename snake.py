@@ -50,14 +50,14 @@ def getDir(dir): #정면방향 기준 [좌측, 정면, 우측] (절대방향) �
     return [left, foward, right]
 
 def norm(vec):
-    return math.sqrt(vec[0]**2+vec[1]**2)
+    return abs(vec[0])+abs(vec[1])
 
 def DrawBlock(position, color):
     block = pygame.Rect(position[0]*PixelPerBlock, position[1]
                         * PixelPerBlock, PixelPerBlock, PixelPerBlock)
     pygame.draw.rect(screen, color, block)
 
-def isEqual(vec1, vec2): #두 벡터가 방향이 같은지 확인 norm(vec1) 은 항상 1
+def isEqual(vec1, vec2): #두 벡터가 방향이 같은지 확인 
     vec2=vec2/norm(vec2)
     if np.array_equal(vec1,vec2):
         return True
@@ -120,10 +120,10 @@ class Snake:
     def getState(self): #현재 state 리턴  
         head = self.body[0]
         dir = getDir(self.dir)  # left,foward,right
-        distance = [0, 0, 0]
+        distance = [1 for _ in range(3)]
         done = [False, False, False]
         pos = copy.deepcopy([head, head, head])
-        valuePerDistance=[1,0.5,0.3,0.2,0.1]
+        valuePerDistance=[0, 0.4, 0.6, 0.8, 0.9]
         for i in range(5):
             for j in range(3):
                 if done[j]:
@@ -146,18 +146,15 @@ class Snake:
     def getReward(self): #사과 먹었으면 10점 아니면 -5점 가까워지면 3
         if self.consume:
             self.consume = False
-            return 10*(self.score+1)
-
-        if self.isDead():
-            return -25*(self.score+1)
+            return 10
 
         now_distance = self.apple - self.body[0]
         if norm(now_distance) < norm(self.last_distance):
             self.last_distance = now_distance
-            return 0.9
+            return 0.009
         self.last_distance = now_distance
 
-        return -0.05
+        return -0.01
 
     def isOutOfBoard(self, position): #해당 좌표가 보드 밖으로 나갔는지 확인
         if position[0] < 0 or position[0] >= BoardX or position[1] < 0 or position[1] >= BoardY:
@@ -172,10 +169,12 @@ class Snake:
 
 def train(episode=1000):
     Game = Snake() 
-    agent = DQN()
+    agent = DQN(episode)
 
     for i in range(episode):
+        print(agent.printEps())
         while True:
+
             # clock.tick(framerate)  #딜레이
             screen.fill(BLACK)
             
@@ -186,7 +185,7 @@ def train(episode=1000):
             dirs = getDir(Game.dir)
             arr = [Game.getState()]
             reward = Game.getReward()
-            action = agent.select_action(Game.getState())
+            action = agent.select_action(arr[0])
 
             Game.changeDir(dirs[action])
             Game.MoveSnake()
@@ -198,6 +197,7 @@ def train(episode=1000):
 
             if Game.isDead():
                 score_history.append(Game.score)
+                agent.decay_epsilon()
                 Game.__init__()
                 break
 
