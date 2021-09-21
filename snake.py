@@ -21,9 +21,7 @@ screen = pygame.display.set_mode(
     (BoardX*PixelPerBlock, BoardY*PixelPerBlock), pygame.DOUBLEBUF)
 clock = pygame.time.Clock()
 
-framerate = 10
-speed = 10
-
+framerate = 30
 
 delta = [ #방향당 위치 변화값
     Vec([1, 0]),  # Right
@@ -56,13 +54,16 @@ def DrawBlock(position, color):
                         * PixelPerBlock, PixelPerBlock, PixelPerBlock)
     pygame.draw.rect(screen, color, block)
 
+score_history = []
 
 class Snake:
     def __init__(self): #게임 초기상태
         self.body = [Vec([BoardX//2, BoardY//2]), Vec([BoardX//2, BoardY//2])]
         self.dir = 0
         self.last_dir = 0
+        self.consume = False
         self.genApple()
+        self.score = 0
 
     def Draw(self): #화면 출력
         for position in self.body:
@@ -74,6 +75,8 @@ class Snake:
         self.last_dir = self.dir
         self.body.insert(0, head)
         if np.array_equal(head, self.apple):
+            self.consume = True
+            self.score += 1
             self.genApple()
         else:
             self.body.pop()
@@ -125,6 +128,12 @@ class Snake:
                 appledir[i] = 1
         return torch.FloatTensor(distance+appledir)
 
+    def getReward(self): #사과 먹었으면 10점 아니면 0점
+        if self.consume:
+            self.consume=False
+            return 10
+        return -1
+
     def isOutOfBoard(self, position): #해당 좌표가 보드 밖으로 나갔는지 확인
         if position[0] < 0 or position[0] >= BoardX or position[1] < 0 or position[1] >= BoardY:
             return True
@@ -136,32 +145,35 @@ class Snake:
                 return True
         return False
 
-def MainLoop(episode=50):
+def MainLoop(episode=100):
     Game = Snake() 
     agent = DQN()
-    
-    running = True
-    while running:
-        for i in range(episode):
+
+    for i in range(episode):
+        while True:
             clock.tick(framerate)  #딜레이
             screen.fill(BLACK)
-            for event in pygame.event.get(): #종료시 loop break
-                if event.type == pygame.QUIT:
-                    running = False
             
             dirs = getDir(Game.dir)
-            try: Game.changeDir(dirs[agent.select_action(Game.getState())])
-            except: Game.changeDir(dirs[1])
-            Game.MoveSnake() #현재 방향으로 이동
+            arr = [Game.getState()]
+            reward = Game.getReward()
+            action = agent.select_action(Game.getState())
 
-            # if Game.
+            Game.changeDir(dirs[action])
+            Game.MoveSnake()
+            arr.append(Game.getState())
 
-            agent.memorize(Game.getState(), agent.select_action(Game.getState()), reward, next_state)
+            agent.memorize(arr[0], action, reward, arr[1])
+            agent.optimize_model()
 
-            if Game.isDead(): #뒤지면 초기화
+            if Game.isDead():
+                score_history.append(Game.score)
                 Game.__init__()
+                break
+
             Game.Draw()
             pygame.display.flip()
+        print(f"{i+1}번째 에피소드 - 점수 : {score_history[i]}")
 
 
 MainLoop()

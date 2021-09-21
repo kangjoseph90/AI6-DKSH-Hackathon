@@ -18,14 +18,14 @@ class DQN:
         self.epsilon_start = 0.99
         self.epsilon_end = 0.05
         self.epsilon_decay = 200
-        self.gamma = 0.85
+        self.gamma = 0.65
         self.lr = 1e-3
-        self.batch_size = 64
+        self.batch_size = 256
 
         self.model = nn.Sequential(
-            nn.Linear(in_features=7, out_features=1024),
+            nn.Linear(in_features=7, out_features=256),
             nn.ReLU(),
-            nn.Linear(in_features=1024, out_features=3)
+            nn.Linear(in_features=256, out_features=3)
     	)
 
         self.optimizer = optim.Adam(self.model.parameters(), self.lr)
@@ -38,7 +38,7 @@ class DQN:
         self.epi_for_memory.append((state,
                             action,
                             torch.FloatTensor([reward]),
-                            torch.FloatTensor([next_state])))
+                            torch.FloatTensor(next_state)))
     
     def select_action(self, state):
         # 지수함수를 이용하여 Epsilon의 값이 점점 Decay됨
@@ -49,7 +49,7 @@ class DQN:
         # (Decaying) Epsilon-Greedy Algorithm
         if torch.rand(1)[0] > epsilon_threshold:
             with torch.no_grad():
-                return self.model(state).data.max(1)[1].view(1, 1)
+                return torch.argmax(self.model(state).data).view(1, 1)
         else:
             return torch.LongTensor([[random.randrange(2)]])
 
@@ -62,10 +62,10 @@ class DQN:
         batch = random.sample(self.epi_for_memory, self.batch_size)
         states, actions, rewards, next_states = zip(*batch)
 
-        states = torch.cat(states)
+        states = torch.cat(states).reshape(256, 7)
         actions = torch.cat(actions)
         rewards = torch.cat(rewards)
-        next_states = torch.cat(next_states)
+        next_states = torch.cat(next_states).reshape(256, 7)
 
         current_q = self.model(states).gather(1, actions)
         max_next_q = self.model(next_states).detach().max(1)[0]
