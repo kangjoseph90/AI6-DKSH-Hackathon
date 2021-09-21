@@ -15,23 +15,23 @@ from collections import deque
 class DQN:
     def __init__(self):
     	# Setting Hyper Parameters
-        self.epsilon_start = 0.99
+        self.epsilon_start = 0.95
         self.epsilon_end = 0.05
-        self.epsilon_decay = 200
-        self.gamma = 0.65
-        self.lr = 1e-3
+        self.epsilon_decay = 100
+        self.gamma = 0.95
+        self.lr = 1e-4
         self.batch_size = 256
 
         self.model = nn.Sequential(
-            nn.Linear(in_features=7, out_features=256),
+            nn.Linear(in_features=6, out_features=256),
             nn.ReLU(),
             nn.Linear(in_features=256, out_features=3)
     	)
 
-        self.optimizer = optim.Adam(self.model.parameters(), self.lr)
+        self.optimizer = optim.Adam(params=self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
         self.steps_done = 0
-        self.epi_for_memory = deque(maxlen=10000)
+        self.epi_for_memory = deque(maxlen=100000)
     
     def memorize(self, state, action, reward, next_state):
         # self.epi_for_memory = [(상태, 행동, 보상, 다음 상태)...]
@@ -62,10 +62,10 @@ class DQN:
         batch = random.sample(self.epi_for_memory, self.batch_size)
         states, actions, rewards, next_states = zip(*batch)
 
-        states = torch.cat(states).reshape(256, 7)
+        states = torch.cat(states).reshape(256, 6)
         actions = torch.cat(actions)
         rewards = torch.cat(rewards)
-        next_states = torch.cat(next_states).reshape(256, 7)
+        next_states = torch.cat(next_states).reshape(256, 6)
 
         current_q = self.model(states).gather(1, actions)
         max_next_q = self.model(next_states).detach().max(1)[0]
