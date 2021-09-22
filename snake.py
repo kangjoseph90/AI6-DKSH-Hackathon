@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 import os
 import time
 
+pygame.init()
+
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
@@ -19,13 +21,16 @@ GREEN = (0, 255, 0)
 BoardX = 30 #게임 사이즈
 BoardY = 30
 
-PixelPerBlock = 25
+PixelPerBlock = 30
 
 screen = pygame.display.set_mode(
     (BoardX*PixelPerBlock, BoardY*PixelPerBlock), pygame.DOUBLEBUF)
+
+pygame.display.set_caption("Snake Game in RL")
+
 clock = pygame.time.Clock()
 
-framerate = 100
+framerate = 50
 
 delta = [ #방향당 위치 변화값
     Vec([1, 0]),  # Right
@@ -69,7 +74,9 @@ score_history = []
 
 class Snake:
     def __init__(self): #게임 초기상태
+        self.board=np.zeros((BoardX,BoardY))
         self.body = [Vec([BoardX//2, BoardY//2]), Vec([BoardX//2, BoardY//2])]
+        self.board[BoardX//2][BoardY//2]=2
         self.dir = 0
         self.last_dir = 0
         self.consume = False
@@ -84,36 +91,36 @@ class Snake:
 
     def MoveSnake(self): #현재 dir로 이동
         head = self.body[0]+delta[self.dir]
-        self.last_dir = self.dir
         self.body.insert(0, head)
+        if self.isOutOfBoard(head):
+            return
+        self.board[head[0],head[1]]+=1
         if np.array_equal(head, self.apple):
             self.consume = True
             self.score += 1
             self.genApple()
         else:
-            self.body.pop()
+            tail=self.body.pop()
+            self.board[tail[0]][tail[1]]-=1
 
     def isDead(self): #죽었는지 확인
         head = self.body[0]
-        if head[0] < 0 or head[0] >= BoardX or head[1] < 0 or head[1] >= BoardY:
+        if self.isOutOfBoard(head):
             return True
-        for i in range(1, len(self.body)):
-            if np.array_equal(self.body[0], self.body[i]):
-                return True
+        if self.board[head[0]][head[1]]>1:
+            return True
         return False
 
     def changeDir(self, dir_NEW): #절대방향으로 방향 변경
-        if Opposite(self.last_dir) == dir_NEW or self.last_dir == dir_NEW:
-            return False
         self.dir = dir_NEW
-        return True
 
     def genApple(self): #사과 생성
         while True:
             temp = random.randrange(0, BoardX*BoardY)
             apple = Vec([temp % BoardX, temp//BoardX])
-            coll = False
-            if self.isInBody(apple):
+            if apple[0]==0 or apple[0]==BoardX-1 or apple[1]==0 or apple[1]==BoardY-1:
+                continue
+            if self.board[apple[0]][apple[1]]>0:
                 continue
             self.apple = apple
             self.last_distance=self.apple-self.body[0]
@@ -122,57 +129,50 @@ class Snake:
     def getState(self): #현재 state 리턴  
         head = self.body[0]
         dir = getDir(self.dir)  # left,foward,right
-        distance = [1 for _ in range(3)]
-        done = [False, False, False]
-        pos = copy.deepcopy([head, head, head])
-        valuePerDistance=[0, 0.4, 0.6, 0.8, 0.9]
-        for i in range(5):
-            for j in range(3):
-                if done[j]:
-                    continue
-                pos[j] += delta[dir[j]]
-                if self.isInBody(pos[j]) or self.isOutOfBoard(pos[j]):
-                    distance[j]=valuePerDistance[i]
-                    done[j] = True
-        appledir = [0, 0, 0]
+        pos=copy.deepcopy(head)+delta[dir[0]]*4+delta[dir[1]]*4
+        grid=np.zeros((9,9))
+        for i in range(9):
+            for j in range(9):
+                if self.isOutOfBoard(pos):
+                    grid[i][j]=0
+                elif self.board[pos[0],pos[1]]>0:
+                    grid[i][j]=0
+                else: 
+                    grid[i][j]=1
+                pos+=delta[dir[2]]
+            pos+=delta[dir[0]]*9-delta[dir[1]]
+        appledir = [0, 0, 0, 0]
         toapple = self.apple-head
         for i in range(3):
             if np.inner(toapple, delta[dir[i]]) > 0:
                 appledir[i] = 1
-        if isEqual(dir[1],toapple):
-            appledir[1]=1
-        else:
-            appledir[1]=0
-        return torch.FloatTensor(distance+appledir)
+        appledir[1]=isEqual(delta[dir[1]],toapple)
+        appledir[3]=isEqual(delta[Opposite(dir[1])],toapple)
+        return torch.FloatTensor(list(np.ravel(grid))+appledir)
 
-    def getReward(self): #사과 먹었으면 10점 아니면 -5점 가까워지면 3
+    def getReward(self): #사과 먹었으면 50점 죽으면 -100점 가까워지면 5점 멀어지면 -2점
         if self.consume:
             self.consume = False
-            return 10
-    
+            return 50 * len(self.body)
         if self.isDead():
-            return -100
+            return -1000
 
         now_distance = self.apple - self.body[0]
         if norm(now_distance) < norm(self.last_distance):
             self.last_distance = now_distance
-            return 1.5
+            return 5
+        self.last_distance = now_distance
 
-        return -0.777
+        return 1
 
     def isOutOfBoard(self, position): #해당 좌표가 보드 밖으로 나갔는지 확인
         if position[0] < 0 or position[0] >= BoardX or position[1] < 0 or position[1] >= BoardY:
             return True
         return False
 
-    def isInBody(self, position): #해당 좌표가 뱀의 몸에 겹치는지 확인
-        for elem in self.body:
-            if np.array_equal(elem, position):
-                return True
-        return False
-
 def train(episode):
     os.system("cls")
+    global framerate
     Game = Snake() 
     agent = DQN(episode)
 
@@ -184,6 +184,9 @@ def train(episode):
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     break
+                if event.type==pygame.KEYDOWN:
+                    if event.key==pygame.K_SPACE:
+                        framerate=110-framerate
 
             dirs = getDir(Game.dir)
             arr = [Game.getState()]
@@ -215,4 +218,4 @@ def train(episode):
     plt.show()
 
 if __name__ == "__main__":
-    train(3000)
+    train(int(1e3))
