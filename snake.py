@@ -161,9 +161,11 @@ class Snake:
         if norm(now_distance) < norm(self.last_distance):
             self.last_distance = now_distance
             return 5
+        else:
+            return -1
         self.last_distance = now_distance
 
-        return 1
+        return -0.777
 
     def isOutOfBoard(self, position): #해당 좌표가 보드 밖으로 나갔는지 확인
         if position[0] < 0 or position[0] >= BoardX or position[1] < 0 or position[1] >= BoardY:
@@ -171,7 +173,6 @@ class Snake:
         return False
 
 def train(episode):
-    os.system("cls")
     global framerate
     Game = Snake() 
     agent = DQN(episode)
@@ -218,4 +219,14 @@ def train(episode):
     plt.show()
 
 if __name__ == "__main__":
+    os.system("cls")
+    print("""
+
+
+Title:\tSnake Game in RL (DQN)
+Author:\tJoseph Kang, Ted Song
+Code:\thttps://github.com/kitae0522/AI6-DKSH-Hackathon
+    
+    
+    """)
     train(int(1e3))
