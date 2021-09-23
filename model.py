@@ -18,7 +18,7 @@ class DQN:
         self.epsilon_start = 0.95
         self.epsilon_end = 1e-20
         self.epsilon_decay = episode
-        self.gamma = 0.95
+        self.gamma = 0.85
         self.lr = 1e-3
         self.batch_size = 32
 
@@ -35,8 +35,8 @@ class DQN:
         self.optimizer = optim.Adam(params=self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
         self.steps_done = 0
-        self.deque_size = int(1e5)
-        self.epi_for_memory = deque(maxlen=self.deque_size)
+        self.memory_size = int(1e3)
+        self.epi_for_memory = []
         self.epsilon_threshold = 0.95
 
     def print_eps(self):
@@ -45,18 +45,23 @@ class DQN:
     def decay_epsilon(self):
         # 지수함수를 이용하여 Epsilon의 값이 점점 Decay됨
         self.epsilon_threshold = self.epsilon_end + (self.epsilon_start - self.epsilon_end) * np.exp(-1. * self.steps_done / self.epsilon_decay)
-        self.steps_done += 10
+        self.steps_done += 7
 
-    def memorize(self, state, action, reward, next_state):
+    def memorize(self, state, action, reward):
         # self.epi_for_memory = [(상태, 행동, 보상, 다음 상태)...]
-        if len(self.epi_for_memory) >= self.deque_size:
-            for _ in range(len(self.epi_for_memory)-self.deque_size):
-                self.popleft()
-
-        self.epi_for_memory.append((state,
+        if len(self.epi_for_memory) >= self.memory_size:
+            self.epi_for_memory.pop()
+        self.epi_for_memory.insert(0,(state,
                             action,
-                            torch.FloatTensor([reward]),
-                            torch.FloatTensor(next_state)))
+                            torch.FloatTensor([reward])))
+        for i in range(16):
+            if i == 0:
+                continue
+            if len(self.epi_for_memory)<=i:
+                break
+            if self.epi_for_memory[i][2][0] == -1000:
+                break
+            self.epi_for_memory[i][2][0]+=self.epi_for_memory[0][2][0]*(self.gamma**i)
     
     def select_action(self, state):
         # (Decaying) Epsilon-Greedy Algorithm
@@ -73,19 +78,19 @@ class DQN:
 
         # 저장해 놓은 메모리 사이즈를 배치 사이즈만큼 Sample로 뽑음
         batch = random.sample(self.epi_for_memory, self.batch_size)
-        states, actions, rewards, next_states = zip(*batch)
+        states, actions, rewards = zip(*batch)
 
         states = torch.cat(states).reshape(self.batch_size, 85)
-        next_states = torch.cat(next_states).reshape(self.batch_size, 85)
         actions = torch.cat(actions)
         rewards = torch.cat(rewards)
 
         current_q = self.model(states).gather(1, actions)
-        max_next_q = self.model(next_states).detach().max(1)[0]
+        #print(rewards)
+        #max_next_q = self.model(next_states).detach().max(1)[0]
 
         # Bellman equation
         # Q(s, a) := R + discount * max(Q(s', a))
-        expected_q = rewards + (self.gamma * max_next_q)
+        expected_q = rewards
         
         # loss func = MSE (Mean Square Error)
         # [before update current Q-value - after update currnet Q-value]^2

@@ -18,8 +18,8 @@ BLACK = (0, 0, 0)
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 
-BoardX = 30 #게임 사이즈
-BoardY = 30
+BoardX = 20 #게임 사이즈
+BoardY = 20
 
 PixelPerBlock = 30
 
@@ -30,7 +30,7 @@ pygame.display.set_caption("Snake Game in RL")
 
 clock = pygame.time.Clock()
 
-framerate = 50
+framerate = 10000
 
 delta = [ #방향당 위치 변화값
     Vec([1, 0]),  # Right
@@ -118,8 +118,6 @@ class Snake:
         while True:
             temp = random.randrange(0, BoardX*BoardY)
             apple = Vec([temp % BoardX, temp//BoardX])
-            if apple[0]==0 or apple[0]==BoardX-1 or apple[1]==0 or apple[1]==BoardY-1:
-                continue
             if self.board[apple[0]][apple[1]]>0:
                 continue
             self.apple = apple
@@ -128,7 +126,7 @@ class Snake:
 
     def getState(self): #현재 state 리턴  
         head = self.body[0]
-        dir = getDir(self.dir)  # left,foward,right
+        dir = getDir(self.dir)+[Opposite(self.dir)]  # left,foward,right
         pos=copy.deepcopy(head)+delta[dir[0]]*4+delta[dir[1]]*4
         grid=np.zeros((9,9))
         for i in range(9):
@@ -143,29 +141,25 @@ class Snake:
             pos+=delta[dir[0]]*9-delta[dir[1]]
         appledir = [0, 0, 0, 0]
         toapple = self.apple-head
-        for i in range(3):
+        for i in range(4):
             if np.inner(toapple, delta[dir[i]]) > 0:
                 appledir[i] = 1
-        appledir[1]=isEqual(delta[dir[1]],toapple)
-        appledir[3]=isEqual(delta[Opposite(dir[1])],toapple)
         return torch.FloatTensor(list(np.ravel(grid))+appledir)
 
     def getReward(self): #사과 먹었으면 50점 죽으면 -100점 가까워지면 5점 멀어지면 -2점
         if self.consume:
             self.consume = False
-            return 50 * len(self.body)
+            return 50 * self.body.__len__()
         if self.isDead():
-            return -1000
+            return -500
 
         now_distance = self.apple - self.body[0]
         if norm(now_distance) < norm(self.last_distance):
             self.last_distance = now_distance
-            return 5
-        else:
-            return -1
+            return 3
         self.last_distance = now_distance
 
-        return -0.777
+        return -1
 
     def isOutOfBoard(self, position): #해당 좌표가 보드 밖으로 나갔는지 확인
         if position[0] < 0 or position[0] >= BoardX or position[1] < 0 or position[1] >= BoardY:
@@ -173,11 +167,12 @@ class Snake:
         return False
 
 def train(episode):
+    os.system("cls")
     global framerate
     Game = Snake() 
     agent = DQN(episode)
-
     for i in range(episode):
+        print(agent.epsilon_threshold)
         while True:
             clock.tick(framerate)  #딜레이
             screen.fill(BLACK)
@@ -187,18 +182,17 @@ def train(episode):
                     break
                 if event.type==pygame.KEYDOWN:
                     if event.key==pygame.K_SPACE:
-                        framerate=110-framerate
+                        framerate=11000-framerate
 
             dirs = getDir(Game.dir)
-            arr = [Game.getState()]
-            action = agent.select_action(arr[0])
+            state=Game.getState()
+            action = agent.select_action(state)
 
             Game.changeDir(dirs[action])
             Game.MoveSnake()
-            arr.append(Game.getState())
             reward = Game.getReward()
 
-            agent.memorize(arr[0], action, reward, arr[1])
+            agent.memorize(state, action, reward)
             agent.optimize_model()
             
 
@@ -219,14 +213,4 @@ def train(episode):
     plt.show()
 
 if __name__ == "__main__":
-    os.system("cls")
-    print("""
-
-
-Title:\tSnake Game in RL (DQN)
-Author:\tJoseph Kang, Ted Song
-Code:\thttps://github.com/kitae0522/AI6-DKSH-Hackathon
-    
-    
-    """)
-    train(int(1e3))
+    train(int(500))
