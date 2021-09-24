@@ -17,15 +17,17 @@ BLACK = (0, 0, 0)
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 
-BoardX = 20 #게임 사이즈
+BoardX = 20 #게임 사이즈n
+
 BoardY = 20
 
-PixelPerBlock = 30
+PixelPerBlock = 40
 
-screen = pygame.display.set_mode(
-    (BoardX*PixelPerBlock, BoardY*PixelPerBlock), pygame.DOUBLEBUF)
+screen = pygame.display.set_mode((BoardX*PixelPerBlock, BoardY*PixelPerBlock), pygame.DOUBLEBUF|pygame.FULLSCREEN)
 
 pygame.display.set_caption("Snake Game in RL")
+
+font=pygame.font.SysFont("consolas",40,True,False)
 
 clock = pygame.time.Clock()
 
@@ -45,7 +47,6 @@ KEY2DIR = {
     pygame.K_RIGHT: 0
 }
 
-
 def Opposite(dir): #정면방향 기준 뒤쪽 방향 (절대방향) 리턴
     return (dir+2) % 4
 
@@ -59,8 +60,8 @@ def norm(vec):
     return abs(vec[0])+abs(vec[1])
 
 def DrawBlock(position, color):
-    block = pygame.Rect(position[0]*PixelPerBlock, position[1]
-                        * PixelPerBlock, PixelPerBlock, PixelPerBlock)
+    block = pygame.Rect(position[0]*PixelPerBlock+1+300, position[1]
+                        * PixelPerBlock+1, PixelPerBlock-2, PixelPerBlock-2)
     pygame.draw.rect(screen, color, block)
 
 def isEqual(vec1, vec2): #두 벡터가 방향이 같은지 확인 
@@ -69,7 +70,7 @@ def isEqual(vec1, vec2): #두 벡터가 방향이 같은지 확인
         return True
     return False
 
-score_history = []
+score_history = [0]
 
 class Snake:
     def __init__(self): #게임 초기상태
@@ -83,10 +84,12 @@ class Snake:
         self.score = 0
         self.last_distance=self.apple-self.body[0]
 
-    def Draw(self): #화면 출력
+    def Draw(self,episode, mxscore): #화면 출력
         for position in self.body:
             DrawBlock(position, WHITE)
         DrawBlock(self.apple, RED)
+        text=font.render(f"Episode : {episode}  score : {self.score}  max score: {mxscore}",True,GREEN)
+        screen.blit(text,(10,10))
 
     def MoveSnake(self): #현재 dir로 이동
         head = self.body[0]+delta[self.dir]
@@ -182,7 +185,7 @@ def train(episode):
     global framerate
     Game = Snake() 
     agent = DQN(episode,13**2+4,3)
-    load(agent)
+    #load(agent)
     for i in range(episode):
         print(agent.epsilon_threshold)
         while True:
@@ -201,6 +204,8 @@ def train(episode):
                         save(agent)
                     if event.key==pygame.K_l:
                         load(agent)
+                    if event.key==pygame.K_ESCAPE:
+                        return
 
             dirs = getDir(Game.dir)
             state = Game.getState()
@@ -211,7 +216,7 @@ def train(episode):
             next_state=Game.getState()
             reward = Game.getReward()
             agent.memorize(state, action, reward, next_state)
-            agent.optimize_model()
+            agent.optimize_model(load_data=False)
 
             if Game.isDead():
                 score_history.append(Game.score)
@@ -219,7 +224,7 @@ def train(episode):
                 Game.__init__()
                 break
 
-            Game.Draw()
+            Game.Draw(i+1, max(score_history))
             pygame.display.flip()
         print(f"{i+1}/{episode} - 점수 : {score_history[i]} / 최고 점수 : {max(score_history)}")
     save(agent)
@@ -230,4 +235,4 @@ def train(episode):
     plt.show()
 
 if __name__ == "__main__":
-    train(int(500))
+    train(int(10000))
