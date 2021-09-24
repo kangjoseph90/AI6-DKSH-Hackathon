@@ -11,8 +11,8 @@ BLACK=(0,0,0)
 RED=(255,0,0)
 GREEN=(0,255,0)
 
-BoardX = 20 #게임 사이즈
-BoardY = 20
+BoardX = 30 #게임 사이즈
+BoardY = 30
 
 PixelPerBlock = 30
 
@@ -23,7 +23,7 @@ pygame.display.set_caption("Snake Game in RL")
 
 clock = pygame.time.Clock()
 
-framerate = 10
+framerate = 30
 
 
 delta=[
@@ -97,6 +97,8 @@ class Snake:
         while True:
             temp = random.randrange(0, BoardX*BoardY)
             apple = Vec([temp % BoardX, temp//BoardX])
+            if apple[0]==0 or apple[0]==BoardX-1 or apple[1]==0 or apple[1]==BoardY-1:
+                continue
             if self.board[apple[0]][apple[1]]>0:
                 continue
             self.apple = apple

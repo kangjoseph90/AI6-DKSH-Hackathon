@@ -6,7 +6,6 @@ from numpy import array as Vec
 from model import DQN
 import torch
 import copy
-import math
 import matplotlib.pyplot as plt
 import os
 import time
@@ -30,7 +29,7 @@ pygame.display.set_caption("Snake Game in RL")
 
 clock = pygame.time.Clock()
 
-framerate = 10000
+framerate = 100
 
 delta = [ #방향당 위치 변화값
     Vec([1, 0]),  # Right
@@ -127,10 +126,10 @@ class Snake:
     def getState(self): #현재 state 리턴  
         head = self.body[0]
         dir = getDir(self.dir)+[Opposite(self.dir)]  # left,foward,right
-        pos=copy.deepcopy(head)+delta[dir[0]]*4+delta[dir[1]]*4
-        grid=np.zeros((9,9))
-        for i in range(9):
-            for j in range(9):
+        pos=copy.deepcopy(head)+delta[dir[0]]*6+delta[dir[1]]*6
+        grid=np.zeros((13,13))
+        for i in range(13):
+            for j in range(13):
                 if self.isOutOfBoard(pos):
                     grid[i][j]=0
                 elif self.board[pos[0],pos[1]]>0:
@@ -138,7 +137,7 @@ class Snake:
                 else: 
                     grid[i][j]=1
                 pos+=delta[dir[2]]
-            pos+=delta[dir[0]]*9-delta[dir[1]]
+            pos+=delta[dir[0]]*13-delta[dir[1]]
         appledir = [0, 0, 0, 0]
         toapple = self.apple-head
         for i in range(4):
@@ -149,28 +148,41 @@ class Snake:
     def getReward(self): #사과 먹었으면 50점 죽으면 -100점 가까워지면 5점 멀어지면 -2점
         if self.consume:
             self.consume = False
-            return 50 * self.body.__len__()
+            return 50
         if self.isDead():
             return -500
-
         now_distance = self.apple - self.body[0]
         if norm(now_distance) < norm(self.last_distance):
             self.last_distance = now_distance
             return 3
         self.last_distance = now_distance
-
-        return -1
+        return -5
 
     def isOutOfBoard(self, position): #해당 좌표가 보드 밖으로 나갔는지 확인
         if position[0] < 0 or position[0] >= BoardX or position[1] < 0 or position[1] >= BoardY:
             return True
         return False
 
+def load(agent):
+    ans=input("load model? (Y/N) : ")
+    if ans != "Y" and ans != "y":
+        return
+    NAME=input("name : ")
+    agent.load(NAME)
+
+def save(agent):
+    ans=input("save model? (Y/N) : ")
+    if ans != "Y" and ans != "y":
+        return
+    NAME=input("name : ")
+    agent.save(NAME)
+
 def train(episode):
     os.system("cls")
     global framerate
     Game = Snake() 
-    agent = DQN(episode)
+    agent = DQN(episode,13**2+4,3)
+    load(agent)
     for i in range(episode):
         print(agent.epsilon_threshold)
         while True:
@@ -182,19 +194,24 @@ def train(episode):
                     break
                 if event.type==pygame.KEYDOWN:
                     if event.key==pygame.K_SPACE:
-                        framerate=11000-framerate
+                        framerate=110-framerate
+                    if event.key==pygame.K_e:
+                        agent.epsilon_threshold=0
+                    if event.key==pygame.K_s:
+                        save(agent)
+                    if event.key==pygame.K_l:
+                        load(agent)
 
             dirs = getDir(Game.dir)
-            state=Game.getState()
+            state = Game.getState()
             action = agent.select_action(state)
 
             Game.changeDir(dirs[action])
             Game.MoveSnake()
+            next_state=Game.getState()
             reward = Game.getReward()
-
-            agent.memorize(state, action, reward)
+            agent.memorize(state, action, reward, next_state)
             agent.optimize_model()
-            
 
             if Game.isDead():
                 score_history.append(Game.score)
@@ -205,7 +222,7 @@ def train(episode):
             Game.Draw()
             pygame.display.flip()
         print(f"{i+1}/{episode} - 점수 : {score_history[i]} / 최고 점수 : {max(score_history)}")
-
+    save(agent)
     plt.plot(score_history)
     plt.title(f"Result of Snake Game in RL that {episode} times learning")
     plt.xlabel("Number of Games")
