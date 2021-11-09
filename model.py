@@ -49,7 +49,7 @@ class DQN:
     def decay_epsilon(self):
         # 지수함수를 이용하여 Epsilon의 값이 점점 Decay됨
         self.epsilon_threshold = self.epsilon_end + (self.epsilon_start - self.epsilon_end) * np.exp(-1. * self.steps_done / self.epsilon_decay)
-        self.steps_done += 50
+        self.steps_done += 8
 
     def memorize(self, state, action, reward, next_state):
         # self.epi_for_memory = [(상태, 행동, 보상, 다음 상태)...]

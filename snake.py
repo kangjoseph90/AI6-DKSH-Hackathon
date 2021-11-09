@@ -23,15 +23,15 @@ BoardY = 20
 
 PixelPerBlock = 40
 
-screen = pygame.display.set_mode((BoardX*PixelPerBlock, BoardY*PixelPerBlock), pygame.DOUBLEBUF|pygame.FULLSCREEN)
+screen = pygame.display.set_mode((BoardX*PixelPerBlock, BoardY*PixelPerBlock), pygame.DOUBLEBUF)
 
 pygame.display.set_caption("Snake Game in RL")
 
-font=pygame.font.SysFont("consolas",40,True,False)
+font=pygame.font.SysFont("consolas",30,True,False)
 
 clock = pygame.time.Clock()
 
-framerate = 100
+framerate = 60
 
 delta = [ #방향당 위치 변화값
     Vec([1, 0]),  # Right
@@ -60,7 +60,7 @@ def norm(vec):
     return abs(vec[0])+abs(vec[1])
 
 def DrawBlock(position, color):
-    block = pygame.Rect(position[0]*PixelPerBlock+1+300, position[1]
+    block = pygame.Rect(position[0]*PixelPerBlock+1, position[1]
                         * PixelPerBlock+1, PixelPerBlock-2, PixelPerBlock-2)
     pygame.draw.rect(screen, color, block)
 
@@ -130,9 +130,9 @@ class Snake:
         head = self.body[0]
         dir = getDir(self.dir)+[Opposite(self.dir)]  # left,foward,right
         pos=copy.deepcopy(head)+delta[dir[0]]*6+delta[dir[1]]*6
-        grid=np.zeros((13,13))
-        for i in range(13):
-            for j in range(13):
+        grid=np.zeros((9,9))
+        for i in range(9):
+            for j in range(9):
                 if self.isOutOfBoard(pos):
                     grid[i][j]=0
                 elif self.board[pos[0],pos[1]]>0:
@@ -140,7 +140,7 @@ class Snake:
                 else: 
                     grid[i][j]=1
                 pos+=delta[dir[2]]
-            pos+=delta[dir[0]]*13-delta[dir[1]]
+            pos+=delta[dir[0]]*9-delta[dir[1]]
         appledir = [0, 0, 0, 0]
         toapple = self.apple-head
         for i in range(4):
@@ -159,7 +159,7 @@ class Snake:
             self.last_distance = now_distance
             return 3
         self.last_distance = now_distance
-        return -5
+        return -1
 
     def isOutOfBoard(self, position): #해당 좌표가 보드 밖으로 나갔는지 확인
         if position[0] < 0 or position[0] >= BoardX or position[1] < 0 or position[1] >= BoardY:
@@ -184,10 +184,10 @@ def train(episode):
     os.system("cls")
     global framerate
     Game = Snake() 
-    agent = DQN(episode,13**2+4,3)
+    agent = DQN(episode,9**2+4,3)
     #load(agent)
     for i in range(episode):
-        print(agent.epsilon_threshold)
+        print(f"epsilon : {agent.epsilon_threshold}")
         while True:
             clock.tick(framerate)  #딜레이
             screen.fill(BLACK)
@@ -197,7 +197,7 @@ def train(episode):
                     break
                 if event.type==pygame.KEYDOWN:
                     if event.key==pygame.K_SPACE:
-                        framerate=110-framerate
+                        framerate=70-framerate
                     if event.key==pygame.K_e:
                         agent.epsilon_threshold=0
                     if event.key==pygame.K_s:
@@ -235,4 +235,4 @@ def train(episode):
     plt.show()
 
 if __name__ == "__main__":
-    train(int(10000))
+    train(int(100))
